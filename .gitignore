@@ -1,0 +1,35 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Node
+node_modules/
+dist/
+.vite/
+
+# Local runtime data and logs
+data/
+backend/data/
+*.log
+*.pid
+backend-dev.log
+frontend-dev.log
+
+# Environment and editor files
+.env
+.env.local
+.env.*.local
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Agent/tool metadata (not part of the project)
+.freebuff/
+.cloud-attachments/
