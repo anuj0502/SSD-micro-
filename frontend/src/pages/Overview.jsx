@@ -121,7 +121,7 @@ export default function Overview() {
   const navigate = useNavigate();
   const { range, live, refreshTick } = useApp();
   const [metric, setMetric] = useState('requests');
-  const query = useApi(() => api.overview(range), [range, refreshTick]);
+  const query = useApi(() => api.overview(range), [range, refreshTick], { interval: live ? 10000 : 0 });
   const { snapshot, connected } = useLiveFeed(range, live);
 
   const data = query.data;
@@ -171,6 +171,12 @@ export default function Overview() {
         subtitle="Here's what's happening across your distributed systems."
         actions={
           <>
+            {data?.demo?.enabled && (
+              <span title="Metrics are derived from simulated telemetry, not production traffic" className="inline-flex h-9 items-center gap-2 rounded-btn border border-amber-200 bg-amber-50 px-3 text-[11px] font-semibold text-amber-800">
+                <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+                Demo Mode · Simulated Data
+              </span>
+            )}
             <span className="inline-flex h-9 items-center gap-2 rounded-btn border border-line bg-white px-3 text-[11px] font-semibold text-muted">
               <span className={`h-1.5 w-1.5 rounded-full ${connected ? 'bg-success animate-pulse-soft' : live ? 'bg-accent' : 'bg-slate-300'}`} />
               {live ? (connected ? 'Live feed connected' : 'Connecting feed…') : 'Live paused'}

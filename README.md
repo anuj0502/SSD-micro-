@@ -155,3 +155,8 @@ TraceFlow is a single-node, local-first system built for learning and demonstrat
 not a production APM. SQLite is a metadata index, not a time-series database; sampling
 decisions are per-process; the fault lab simulates failures in-process rather than killing
 containers; and the benchmark runner measures this machine.
+
+
+### Render automatic demo telemetry
+
+The Render Blueprint opts in to `AUTO_DEMO_ENABLED=true`. On startup the collector emits 24 synthetic traces and then generates 1 every 15 seconds via the normal ingestion → sampling → index → compressed storage pipeline. The Overview shows a **Demo Mode · Simulated Data** label; these are *not* genuine production requests. It can be disabled with `AUTO_DEMO_ENABLED=false`. See `RENDER_DEPLOYMENT.md` for GitHub update steps and free-tier storage limitations.

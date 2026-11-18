@@ -18,6 +18,14 @@ services:
         value: memory
       - key: OBJECT_STORE_BACKEND
         value: postgres
+      - key: AUTO_DEMO_ENABLED
+        value: 'true'
+      - key: AUTO_DEMO_INITIAL_TRACES
+        value: '24'
+      - key: AUTO_DEMO_TRACES_PER_INTERVAL
+        value: '1'
+      - key: AUTO_DEMO_INTERVAL_S
+        value: '15'
       - key: PYTHONUNBUFFERED
         value: '1'
 databases:

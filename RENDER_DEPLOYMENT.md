@@ -6,7 +6,9 @@
 - PostgreSQL replaces SQLite for **deployed trace metadata**, using `DATABASE_URL`.
 - The existing gzip batch object-store contract remains: on the free demo, compressed batch objects are saved in a **separate PostgreSQL BYTEA table** instead of ephemeral files. Original MinIO remains supported via `OBJECT_STORE_BACKEND=minio`.
 - Buffer defaults to the original **in-memory fallback**, because a free standalone Redis is not provisioned. This buffer is **not durable** across Render sleeps/restarts. For production-grade Redis Streams replay, configure an external Redis-compatible instance and set `BUFFER_BACKEND=redis` and `REDIS_URL`.
-- Simulated gateway/order/payment/inventory microservices are still in the source but are **not deployed** by this single-service blueprint. Use your dashboard's existing OTLP ingestion, benchmarks/fault tools, or run the simulator separately against the deployed collector. Do not expect external simulated services to be running automatically.
+- The four standalone simulated microservices are still in the source but **are not deployed** by this single-service blueprint. Instead, the Render Blueprint enables **AUTO_DEMO_ENABLED=true**, a lightweight synthetic traffic generator inside the collector using the *existing ingestion pipeline*. It creates valid gateway/order/payment/inventory spans, so the dashboard indexes actual simulated trace records rather than hard-coded sample metrics. The UI labels this clearly as Demo Mode.
+- Auto-demo initially emits 24 traces and then 1 trace every 15 seconds while the web service is active. It can be switched off at any time by setting `AUTO_DEMO_ENABLED=false` in Render's service Environment settings, then redeploying/restarting. Do not run the generator at this rate continuously on a quota-constrained database for long periods; monitor usage.
+- Overview metrics can remain zero for several seconds after cold start: the existing tail-sampling completion timer and storage workers need to process the initial spans. After waiting and refreshing, inspect `/api/health` and `/api/dashboard/overview` if still empty.
 
 ## Deploy from GitHub
 
@@ -15,7 +17,7 @@
 3. Open [Render Dashboard](https://dashboard.render.com/) → **New** → **Blueprint**, connect the GitHub repository containing `render.yaml`, and apply the Blueprint.
 4. The Blueprint provisions `traceflow-postgres` (free) and builds a single `traceflow-demo` Docker web service (free), with `DATABASE_URL` wired automatically.
 5. Wait for the dashboard to show deploy **Live**, then visit `https://YOUR-SERVICE.onrender.com/`. The API docs remain at `/api/docs`, health at `/api/health`, ingestion at `/v1/traces`.
-6. Verify `/api/health` reports `components.postgres.status=healthy`, then open the dashboard and check the live feed.
+6. Verify `/api/health` reports `components.postgres.status=healthy` and `demo.enabled=true`, then open the dashboard. Give the processing pipeline time to index initial traces (typically a few seconds), refresh if necessary, and check Trace Explorer and the service map.
 
 ## Local PostgreSQL quickstart
 
@@ -46,3 +48,18 @@ Run `npm ci && npm run dev` in `frontend` separately. Vite proxies API/WS to loc
 - Updated SQLite-only frontend and health labels to PostgreSQL.
 - SQLite module remains for existing isolated local SQLite tests; Render *always* selects PostgreSQL when `DATABASE_URL` is supplied.
 - Existing microservice and local Docker Compose setups are retained as-is.
+
+## How to update an already deployed GitHub repository
+
+Extract the NEW ZIP in a fresh folder. If the current deployment repository is already checked out on your computer, **copy the new ZIP's contents** into that repository's root (preserve its `.git` folder), replacing files with the same names. Avoid copying an extra `TraceFlow_Render/` wrapper layer into the repo root. Never replace the repository's `.git` directory, and don't upload `.env`, credentials, or virtual environments.
+
+Run from your repository root:
+
+```sh
+git status
+git add .
+git commit -m "Enable automatic demo telemetry"
+git push origin main
+```
+
+Render's auto-deploy (when enabled for `main`) will rebuild the web app from the push. `render.yaml` Blueprint updates can also require **Blueprint Sync** in Render Dashboard to apply the new `AUTO_DEMO_*` environment variables; if they don't appear, add them manually to the web service's Environment section and redeploy. If you need to preserve other changes since the original ZIP, merge the changed files instead of blindly overwriting them. Existing PostgreSQL tables are not cleared by this deployment.
