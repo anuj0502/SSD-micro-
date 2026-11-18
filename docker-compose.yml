@@ -1,0 +1,192 @@
+# TraceFlow local stack: collector + storage backends + simulated services + dashboard.
+#
+#   docker compose up --build
+#
+# Dashboard   http://localhost:5173   (nginx, proxies /api and /v1 to the collector)
+# Collector   http://localhost:8000   (OpenAPI docs at /api/docs)
+# MinIO UI    http://localhost:9001   (traceflow / traceflow123)
+# Gateway     http://localhost:8001/checkout   (traffic entry point)
+
+name: traceflow
+
+x-service-base: &service-base
+  build:
+    context: ./backend
+  image: traceflow-backend:local
+  restart: unless-stopped
+  environment: &service-env
+    ENVIRONMENT: docker
+    OTEL_EXPORTER_OTLP_ENDPOINT: http://collector:8000
+    OTEL_SERVICE_NAMESPACE: traceflow
+  depends_on:
+    collector:
+      condition: service_healthy
+
+services:
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory-policy", "noeviction"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  minio:
+    image: minio/minio:latest
+    restart: unless-stopped
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-traceflow}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-traceflow123}
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  collector:
+    build:
+      context: ./backend
+    image: traceflow-backend:local
+    restart: unless-stopped
+    environment:
+      ENVIRONMENT: docker
+      BUFFER_BACKEND: redis
+      OBJECT_STORE_BACKEND: minio
+      REDIS_URL: redis://redis:6379/0
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-traceflow}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-traceflow123}
+      MINIO_BUCKET: ${MINIO_BUCKET:-traceflow-telemetry}
+      SQLITE_PATH: /app/data/traceflow.db
+      DATA_DIR: /app/data
+      CORS_ORIGINS: http://localhost:5173,http://127.0.0.1:5173
+      SAMPLING_ERROR_RATE: ${SAMPLING_ERROR_RATE:-1.0}
+      SAMPLING_SLOW_THRESHOLD_MS: ${SAMPLING_SLOW_THRESHOLD_MS:-500}
+      SAMPLING_SUCCESS_RATE: ${SAMPLING_SUCCESS_RATE:-0.1}
+    ports:
+      - "8000:8000"
+    volumes:
+      - collector-data:/app/data
+    depends_on:
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=3).status == 200 else 1)"
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+
+  gateway:
+    <<: *service-base
+    ports:
+      - "8001:8001"
+    environment:
+      <<: *service-env
+      ORDER_SERVICE_URL: http://order:8002
+    command: ["uvicorn", "app.services.gateway.main:app", "--host", "0.0.0.0", "--port", "8001"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8001/health', timeout=2).status == 200 else 1)"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+
+  order:
+    <<: *service-base
+    ports:
+      - "8002:8002"
+    environment:
+      <<: *service-env
+      PAYMENT_SERVICE_URL: http://payment:8003
+      INVENTORY_SERVICE_URL: http://inventory:8004
+    command: ["uvicorn", "app.services.order.main:app", "--host", "0.0.0.0", "--port", "8002"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8002/health', timeout=2).status == 200 else 1)"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+
+  payment:
+    <<: *service-base
+    ports:
+      - "8003:8003"
+    environment: *service-env
+    command: ["uvicorn", "app.services.payment.main:app", "--host", "0.0.0.0", "--port", "8003"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8003/health', timeout=2).status == 200 else 1)"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+
+  inventory:
+    <<: *service-base
+    ports:
+      - "8004:8004"
+    environment: *service-env
+    command: ["uvicorn", "app.services.inventory.main:app", "--host", "0.0.0.0", "--port", "8004"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8004/health', timeout=2).status == 200 else 1)"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+
+  dashboard:
+    build:
+      context: ./frontend
+    image: traceflow-dashboard:local
+    restart: unless-stopped
+    ports:
+      - "5173:80"
+    depends_on:
+      collector:
+        condition: service_healthy
+
+  # Optional: docker compose --profile load run --rm locust
+  locust:
+    profiles: ["load"]
+    image: locustio/locust:2.32.5
+    volumes:
+      - ./load_tests:/mnt/locust
+    command:
+      - -f
+      - /mnt/locust/locustfile.py
+      - --host
+      - http://gateway:8001
+      - --headless
+      - -u
+      - "20"
+      - -r
+      - "5"
+      - -t
+      - "60s"
+      - --only-summary
+    depends_on:
+      gateway:
+        condition: service_healthy
+
+volumes:
+  redis-data:
+  minio-data:
+  collector-data:

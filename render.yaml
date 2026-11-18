@@ -1,0 +1,27 @@
+# Render Blueprint: one free web service + one free PostgreSQL database.
+services:
+  - type: web
+    name: traceflow-demo
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile.render
+    dockerContext: .
+    healthCheckPath: /api/health
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: traceflow-postgres
+          property: connectionString
+      - key: ENVIRONMENT
+        value: production
+      - key: BUFFER_BACKEND
+        value: memory
+      - key: OBJECT_STORE_BACKEND
+        value: postgres
+      - key: PYTHONUNBUFFERED
+        value: '1'
+databases:
+  - name: traceflow-postgres
+    plan: free
+    databaseName: traceflow
+    user: traceflow

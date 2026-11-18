@@ -1,0 +1,24 @@
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+pydantic==2.10.4
+pydantic-settings==2.7.0
+aiosqlite==0.20.0  # legacy local tests
+asyncpg==0.30.0  # PostgreSQL for Render
+redis==5.2.1
+minio==7.2.12
+httpx==0.28.1
+python-multipart==0.0.20
+protobuf==5.29.2
+
+# OpenTelemetry instrumentation / export for the simulated microservices
+opentelemetry-api==1.29.0
+opentelemetry-sdk==1.29.0
+opentelemetry-exporter-otlp-proto-http==1.29.0
+opentelemetry-instrumentation-fastapi==0.50b0
+opentelemetry-instrumentation-httpx==0.50b0
+opentelemetry-proto==1.29.0
+
+# Testing
+pytest==8.3.4
+pytest-asyncio==0.25.0
+locust==2.32.5
