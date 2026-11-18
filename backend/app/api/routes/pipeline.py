@@ -40,6 +40,13 @@ async def pipeline_stats(runtime: Runtime = Depends(get_runtime)) -> dict[str, A
         "stages": stages,
         "health": "degraded" if degraded else "healthy",
         "degraded_stages": degraded,
+        "deployment": {"buffer_backend": runtime.buffer.backend if runtime.buffer else "unknown",
+                       "storage_backend": runtime.store.backend if runtime.store else "unknown",
+                       "database_backend": runtime.db.backend if hasattr(runtime.db, "backend") else "sqlite"},
+        "totals": {"spans_received": runtime.counters["spans_received"],
+                   "spans_enqueued": runtime.counters["spans_enqueued"],
+                   "traces_indexed": runtime.counters["traces_indexed"],
+                   "traces_evaluated": runtime.sampler.stats["evaluated"]},
         "queue": {
             "stream_depth": health["queue_depth"],
             "pending_messages": health["pending_messages"],

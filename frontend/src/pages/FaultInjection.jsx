@@ -7,6 +7,7 @@ import Badge from '../components/ui/Badge';
 import Button from '../components/ui/Button';
 import Modal from '../components/ui/Modal';
 import ScenarioCard from '../components/faults/ScenarioCard';
+import RenderScenarios from '../components/faults/RenderScenarios';
 import ConfirmDialog from '../components/ui/ConfirmDialog';
 import { EmptyState, ErrorState, Skeleton } from '../components/ui/Feedback';
 import { useToast } from '../contexts/ToastContext';
@@ -20,8 +21,9 @@ export default function FaultInjection() {
   const [busy, setBusy] = useState(null);
   const [runDetail, setRunDetail] = useState(null);
 
-  const scenariosQuery = useApi(() => api.faultScenarios(), [], { interval: 4000 });
-  const runsQuery = useApi(() => api.faultRuns({ limit: 12 }), [], { interval: 4000 });
+  const isLocal = ['localhost', '127.0.0.1'].includes(window.location.hostname);
+  const scenariosQuery = useApi(() => isLocal ? api.faultScenarios() : Promise.resolve({scenarios: []}), [isLocal], { interval: 4000 });
+  const runsQuery = useApi(() => isLocal ? api.faultRuns({ limit: 12 }) : Promise.resolve({runs: []}), [isLocal], { interval: 4000 });
 
   const scenarios = scenariosQuery.data?.scenarios || [];
   const runs = runsQuery.data?.runs || [];
@@ -48,11 +50,11 @@ export default function FaultInjection() {
       <PageHeading
         eyebrow="Resilience lab"
         title="Fault Injection"
-        subtitle="Deliberately break the pipeline locally and observe how it degrades and recovers."
+        subtitle={isLocal ? "Deliberately break the local pipeline and observe recovery." : "Safely demonstrate failures and recovery through measured HTTP requests."}
         actions={
           <div className="flex items-center gap-2">
             <span className="inline-flex h-9 items-center gap-2 rounded-btn border border-orange-100 bg-orange-50 px-3 text-[11px] font-bold text-accent">
-              <ShieldAlert size={13} /> Local environment only
+              <ShieldAlert size={13} /> {isLocal ? "Local infrastructure lab" : "Render simulation"}
             </span>
             <Button variant="secondary" size="sm" icon={Activity} onClick={() => { scenariosQuery.refresh(); runsQuery.refresh(); }}>
               Refresh
@@ -61,6 +63,7 @@ export default function FaultInjection() {
         }
       />
 
+      {!isLocal ? <RenderScenarios /> : <>
       <div className="mb-4 rounded-widget border border-line bg-white px-4 py-3.5">
         <div className="flex items-start gap-3">
           <span className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-orange-50 text-accent">
@@ -173,6 +176,7 @@ export default function FaultInjection() {
         </Card>
       </div>
 
+      </>}
       <ConfirmDialog
         open={Boolean(pending)}
         onClose={() => setPending(null)}

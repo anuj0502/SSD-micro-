@@ -74,6 +74,11 @@ export const api = {
   faultRuns: (params) => get('/faults/runs', params),
   faultRun: (runId) => get(`/faults/runs/${encodeURIComponent(runId)}`),
 
+  // bounded Render application scenarios (local infra scenarios remain unchanged)
+  renderFaultScenarios: () => get('/faults/render/scenarios'),
+  renderFaultRuns: () => get('/faults/render/runs'),
+  triggerRenderFault: (scenario) => post(`/faults/render/${encodeURIComponent(scenario)}`),
+
   // benchmarks
   runBenchmark: (config) => post('/benchmarks/run', { config }),
   benchmarkResults: (limit = 20) => get('/benchmarks/results', { limit }),

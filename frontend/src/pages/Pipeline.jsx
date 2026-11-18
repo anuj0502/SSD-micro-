@@ -43,6 +43,7 @@ export default function Pipeline() {
   const workers = data?.workers || {};
   const components = data?.components || {};
   const health = data?.health || 'unknown';
+  const backend = data?.deployment?.buffer_backend || 'unknown';
 
   const stageHistory = inspected ? data?.history?.[inspected.stage] || [] : [];
 
@@ -51,7 +52,7 @@ export default function Pipeline() {
       <PageHeading
         eyebrow="Data path"
         title="Telemetry Pipeline"
-        subtitle="Microservices → Ingestion → Redis Buffer → Aggregation → Sampling → Batching → Storage → Indexing."
+        subtitle={`Microservices → Ingestion → ${backend === 'redis' ? 'Redis' : 'In-memory'} Buffer → Aggregation → Sampling → Batching → Storage → Indexing.`}
         actions={
           <>
             <span
@@ -90,9 +91,13 @@ export default function Pipeline() {
             </div>
           ) : null}
 
+          <div className="mb-4 rounded-widget border border-line bg-white px-4 py-3 text-[11px] text-muted">
+            <b className="text-ink">Live processing:</b> {formatNumber(data?.totals?.spans_received)} spans received, {formatNumber(data?.totals?.spans_enqueued)} enqueued and {formatNumber(data?.totals?.traces_indexed)} traces indexed since this process started.
+            <span className="block mt-1">A queue depth of <b>0 is normal</b> when workers process incoming spans immediately. Queue counts are current backlog, not historical traffic. Buffer: {backend}. Storage: {data?.deployment?.storage_backend || 'unknown'}.</span>
+          </div>
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <QueueTile label="Stream depth" value={formatNumber(queue.stream_depth)} hint="Entries waiting in the buffer" />
-            <QueueTile label="Pending msgs" value={formatNumber(queue.pending_messages)} hint="Unacknowledged consumer messages" tone="orange" />
+            <QueueTile label={backend === 'redis' ? "Stream depth" : "Memory queue depth"} value={formatNumber(queue.stream_depth)} hint="Entries waiting in the buffer" />
+            <QueueTile label={backend === 'redis' ? "Pending msgs" : "Unacked messages"} value={formatNumber(queue.pending_messages)} hint="Unacknowledged consumer messages" tone="orange" />
             <QueueTile label="Spill queue" value={formatNumber(queue.spill_depth)} hint="Spans held during buffer outages" tone="pink" />
             <QueueTile label="Batch queue" value={formatNumber(queue.batch_queue)} hint={`${formatNumber(queue.batcher_buffer)} traces in batcher`} tone="green" />
           </div>
@@ -164,7 +169,7 @@ export default function Pipeline() {
                   return (
                     <div key={key} className="flex items-center justify-between rounded-widget border border-line px-3 py-2.5">
                       <div>
-                        <p className="text-[11.5px] font-bold capitalize text-ink">{key === 'minio' ? 'object storage' : key}</p>
+                        <p className="text-[11.5px] font-bold capitalize text-ink">{key === 'minio' ? 'object storage' : key === 'redis' && backend !== 'redis' ? 'memory buffer' : key}</p>
                         <p className="text-[9.5px] font-medium text-muted">
                           {component.backend || component.path || component.url || 'local'}
                         </p>

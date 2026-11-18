@@ -235,7 +235,7 @@ class Runtime:
             },
             {
                 "stage": "buffer",
-                "label": "Redis Buffer",
+                "label": "Redis Buffer" if self.buffer and self.buffer.backend == "redis" else "Memory Buffer",
                 "incoming": self.counters["spans_enqueued"],
                 "processed": sum(w.processed_messages for w in self.workers.values() if hasattr(w, "processed_messages")),
                 "pending": max(0, depth) + max(0, pending),
