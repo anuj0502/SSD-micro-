@@ -26,6 +26,7 @@ async def health(runtime: Runtime = Depends(get_runtime)) -> dict[str, Any]:
         "environment": settings.environment,
         "demo": {"enabled": settings.auto_demo_enabled, "source": "synthetic" if settings.auto_demo_enabled else None},
         "timestamp": time.time(),
+        "real_demo": {"enabled": settings.real_demo_enabled, "endpoint": "/demo-app/checkout" if settings.real_demo_enabled else None},
         "telemetry": {
             "traces_indexed": int(stats["traces"] or 0) if stats else 0,
             "spans_indexed": int(stats["spans"] or 0) if stats else 0,

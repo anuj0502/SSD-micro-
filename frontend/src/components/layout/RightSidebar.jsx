@@ -53,7 +53,7 @@ export default function RightSidebar({ onClose, drawer = false }) {
   const tasks = [
     {
       label: 'Ingestion worker',
-      detail: 'Redis consumer',
+      detail: components.redis?.backend === 'memory' ? 'In-process memory queue' : 'Redis consumer',
       status: workers.ingestion?.running ? 'running' : 'stopped',
     },
     {
@@ -103,9 +103,9 @@ export default function RightSidebar({ onClose, drawer = false }) {
       <section className="px-4 pt-2">
         <div className="rounded-widget border border-line bg-canvas/60 p-4">
           <StatusRow label="Collector" value={components.collector?.status} status={components.collector?.status} />
-          <StatusRow label="Redis connection" value={components.redis?.status} status={components.redis?.status} />
+          <StatusRow label={components.redis?.backend === "memory" ? "Memory buffer" : "Redis connection"} value={components.redis?.status} status={components.redis?.status} />
           <StatusRow label="PostgreSQL" value={components.postgres?.status} status={components.postgres?.status} />
-          <StatusRow label="Object Storage / objects" value={components.minio?.status} status={components.minio?.status} />
+          <StatusRow label={components.minio?.backend === "postgres" ? "PostgreSQL objects" : "Object Storage / objects"} value={components.minio?.status} status={components.minio?.status} />
           <div className="mt-1 flex items-center justify-between border-t border-line pt-2">
             <span className="text-[11.5px] font-medium text-muted">Active workers</span>
             <span className="text-[11px] font-bold text-ink">

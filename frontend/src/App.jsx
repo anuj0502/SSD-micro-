@@ -15,6 +15,7 @@ import Sampling from './pages/Sampling';
 import Storage from './pages/Storage';
 import FaultInjection from './pages/FaultInjection';
 import Benchmarks from './pages/Benchmarks';
+import RealDemo from './pages/RealDemo';
 
 function NotFound() {
   const navigate = useNavigate();
@@ -42,6 +43,7 @@ export default function App() {
             <Route path="storage" element={<Storage />} />
             <Route path="faults" element={<FaultInjection />} />
             <Route path="benchmarks" element={<Benchmarks />} />
+            <Route path="real-demo" element={<RealDemo />} />
             <Route path="*" element={<NotFound />} />
           </Route>
         </Routes>

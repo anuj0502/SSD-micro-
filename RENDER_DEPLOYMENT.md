@@ -63,3 +63,48 @@ git push origin main
 ```
 
 Render's auto-deploy (when enabled for `main`) will rebuild the web app from the push. `render.yaml` Blueprint updates can also require **Blueprint Sync** in Render Dashboard to apply the new `AUTO_DEMO_*` environment variables; if they don't appear, add them manually to the web service's Environment section and redeploy. If you need to preserve other changes since the original ZIP, merge the changed files instead of blindly overwriting them. Existing PostgreSQL tables are not cleared by this deployment.
+
+
+## Real OpenTelemetry checkout API demo (new)
+
+Blueprint sets `REAL_DEMO_ENABLED=true`; this mounts a separately instrumented
+FastAPI application at `/demo-app`, within the same free Render web service.
+Open **Real HTTP Demo** in the dashboard and click one of three checkout
+buttons. Each click makes a genuine browser-to-server POST request. The
+OpenTelemetry Python SDK collects real timings and exports OTLP/HTTP protobuf
+back to the TraceFlow collector at `127.0.0.1:$PORT/v1/traces`. The collector
+then samples, assembles and stores the trace in PostgreSQL.
+
+- `success`: normal HTTP 200 checkout, spans for validation, inventory, payment, confirmation.
+- `slow`: deliberate 750ms payment delay, measured in real wall-clock time.
+- `error`: HTTP 503 payment decline; error trace should be retained by tail sampling.
+- Trace export is asynchronous; allow several seconds for it to be indexed.
+- This demonstration uses a real HTTP application with real instrumentation,
+  **not** independent production microservices or customer transactions.
+- The four original simulated services remain in the source code, unchanged.
+- `REAL_DEMO_ENABLED=false` disables the mounted application entirely.
+- `AUTO_DEMO_ENABLED=false` turns off the synthetic traffic generator if you
+  want to show only traces from the real checkout API.
+
+### PostgreSQL status and retention
+
+`DATABASE_URL` selects asyncpg-backed PostgreSQL (metadata and raw compressed
+trace objects, because `OBJECT_STORE_BACKEND=postgres`). Verify in the live
+`/api/health` response: `components.postgres.status`, `telemetry.config`,
+`telemetry.traces_indexed`, and worker health. Local compilation is **not** a
+live database connectivity test. The free database is not permanent: check
+Render's current free database expiration and backup limitations.
+
+### Suggested production hardening (not applied to core project)
+
+1. Add real authentication/authorization before exposing administrative fault
+   injection, sampling and benchmark endpoints to the public internet.
+2. Protect unauthenticated OTLP ingestion (`/v1/traces`) with API keys,
+   request-size caps and rate limits before accepting arbitrary telemetry.
+3. Replace memory buffer with durable Redis/queue if trace loss on sleep or
+   instance restart matters; use external object storage for larger workloads.
+4. Use database migrations (Alembic), scheduled retention, regular backups,
+   and monitoring of database size, worker errors and queue depth.
+5. For a truly distributed real-service demonstration, deploy and instrument
+   independent gateway/order/payment/inventory services. This ZIP deliberately
+   avoids extra billed services on Render Free.

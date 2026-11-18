@@ -105,6 +105,12 @@ def create_app(
     app.include_router(api_router)
     app.include_router(ingest_router)
 
+    # Independently instrumented ASGI sub-application. Its genuine HTTP requests
+    # export OTLP spans to the collector; collector routes are NOT instrumented.
+    if settings.real_demo_enabled:
+        from app.services.real_checkout import checkout_app
+        app.mount("/demo-app", checkout_app)
+
     @app.get("/", include_in_schema=False)
     async def root():
         frontend_index = Path(__file__).resolve().parents[2] / "frontend" / "dist" / "index.html"

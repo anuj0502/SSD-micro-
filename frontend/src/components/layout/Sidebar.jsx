@@ -11,6 +11,7 @@ import {
   Search,
   Workflow,
   Zap,
+  ShoppingCart,
 } from 'lucide-react';
 
 import { useApp } from '../../contexts/AppContext';
@@ -27,6 +28,7 @@ export const NAV_ITEMS = [
   { to: '/storage', label: 'Storage & Indexing', icon: Database },
   { to: '/faults', label: 'Fault Injection', icon: Zap },
   { to: '/benchmarks', label: 'Benchmarks', icon: Gauge },
+  { to: '/real-demo', label: 'Real HTTP Demo', icon: ShoppingCart },
 ];
 
 function ComponentRow({ label, status }) {
@@ -87,7 +89,7 @@ export default function Sidebar({ open = false, onClose }) {
           <div className="flex items-center justify-between gap-2 rounded-widget bg-[#fff7ed] px-3 py-2.5">
             <div className="flex items-center gap-2">
               <Boxes size={15} className="text-accent" />
-              <span className="text-[11.5px] font-bold text-accent">Local Environment</span>
+              <span className="text-[11.5px] font-bold text-accent">{health?.environment === 'production' ? 'Render Deployment' : 'Local Environment'}</span>
             </div>
             <span className="flex items-center gap-1.5">
               <span
@@ -152,8 +154,8 @@ export default function Sidebar({ open = false, onClose }) {
               </span>
             </div>
             <ComponentRow label="Collector" status={collector.status || 'unknown'} />
-            <ComponentRow label="Redis buffer" status={components.redis?.status} />
-            <ComponentRow label="Object storage" status={components.minio?.status} />
+            <ComponentRow label={components.redis?.backend === "memory" ? "In-memory buffer" : "Redis buffer"} status={components.redis?.status} />
+            <ComponentRow label={components.minio?.backend === "postgres" ? "PostgreSQL objects" : "Object storage"} status={components.minio?.status} />
             <div className="mt-2 flex items-center justify-between border-t border-line pt-2">
               <span className="text-[11.5px] font-medium text-muted">Services connected</span>
               <span className="text-[11.5px] font-bold text-ink">{formatNumber(serviceCount)}</span>

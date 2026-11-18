@@ -79,6 +79,9 @@ class Settings(BaseSettings):
     auto_demo_error_probability: float = 0.12
     auto_demo_slow_probability: float = 0.15
 
+    # Real HTTP checkout demonstration: isolated from synthetic background data.
+    real_demo_enabled: bool = False
+
     # --- e-commerce simulation ---
     gateway_url: str = "http://localhost:8001"
 

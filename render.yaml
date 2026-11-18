@@ -18,6 +18,8 @@ services:
         value: memory
       - key: OBJECT_STORE_BACKEND
         value: postgres
+      - key: REAL_DEMO_ENABLED
+        value: 'true'
       - key: AUTO_DEMO_ENABLED
         value: 'true'
       - key: AUTO_DEMO_INITIAL_TRACES
