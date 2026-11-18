@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Activity, ArrowRight, GitMerge, Layers, RefreshCw, Workflow } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Activity, ArrowRight, CheckCircle2, FlaskConical, GitMerge, Layers, RefreshCw, Workflow } from 'lucide-react';
 
 import PageHeading from '../components/layout/PageHeading';
 import Card, { CardHeader } from '../components/ui/Card';
@@ -36,6 +36,51 @@ export default function Pipeline() {
   const { range, refreshTick } = useApp();
   const query = useApi(() => api.pipeline(), [range, refreshTick], { interval: 4000 });
   const [inspected, setInspected] = useState(null);
+  const [verification, setVerification] = useState(null);
+  const [verifying, setVerifying] = useState(false);
+  const [verificationError, setVerificationError] = useState('');
+
+  const startVerification = async () => {
+    if (verifying) return;
+    setVerification(null);
+    setVerificationError('');
+    setVerifying(true);
+    try {
+      const result = await api.startPipelineVerification();
+      setVerification({ ...result, state: 'accepted', message: 'Diagnostic span accepted. Waiting for processing and storage.' });
+    } catch (error) {
+      setVerificationError(error.message || 'Could not start verification');
+      setVerifying(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!verifying || !verification?.trace_id) return undefined;
+    const traceId = verification.trace_id;
+    let active = true;
+    let checks = 0;
+    const poll = async () => {
+      try {
+        const result = await api.pipelineVerification(traceId);
+        if (!active) return;
+        setVerification(result);
+        if (result.state === 'stored' || result.state === 'discarded') setVerifying(false);
+      } catch (error) {
+        if (active) {
+          setVerificationError(error.message || 'Verification status could not be loaded');
+          setVerifying(false);
+        }
+      }
+      checks += 1;
+      if (active && checks >= 30) {
+        setVerificationError('Still processing after 90 seconds. Check the trace in Trace Explorer or inspect worker health.');
+        setVerifying(false);
+      }
+    };
+    const timer = setInterval(poll, 3000);
+    return () => { active = false; clearInterval(timer); };
+  }, [verifying, verification?.trace_id]);
+
 
   const data = query.data;
   const stages = data?.stages || [];
@@ -95,6 +140,33 @@ export default function Pipeline() {
             <b className="text-ink">Live processing:</b> {formatNumber(data?.totals?.spans_received)} spans received, {formatNumber(data?.totals?.spans_enqueued)} enqueued and {formatNumber(data?.totals?.traces_indexed)} traces indexed since this process started.
             <span className="block mt-1">A queue depth of <b>0 is normal</b> when workers process incoming spans immediately. Queue counts are current backlog, not historical traffic. Buffer: {backend}. Storage: {data?.deployment?.storage_backend || 'unknown'}.</span>
           </div>
+          <Card className="mb-4 p-4 sm:p-5">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="flex min-w-0 flex-1 items-start gap-3">
+                <span className="rounded-lg bg-blue-50 p-2 text-primary"><FlaskConical size={18} /></span>
+                <div>
+                  <h3 className="text-sm font-bold text-ink">End-to-end pipeline verification</h3>
+                  <p className="mt-1 text-[11px] leading-relaxed text-muted">Send one identifiable diagnostic span through the real ingestion buffer, tail sampling, PostgreSQL index and compressed object storage. The result is checked from persisted data, not a display-only counter.</p>
+                </div>
+              </div>
+              <Button variant="secondary" size="sm" icon={FlaskConical} onClick={startVerification} disabled={verifying}>
+                {verifying ? 'Verifying…' : 'Run pipeline test'}
+              </Button>
+            </div>
+            {verification ? (
+              <div className="mt-3 rounded-lg border border-line bg-slate-50 p-3 text-[11px] text-muted">
+                <div className="flex flex-wrap items-center gap-2">
+                  {verification.state === 'stored' ? <CheckCircle2 size={16} className="text-success" /> : <Activity size={16} className="text-primary" />}
+                  <span className="font-bold text-ink">{verification.state === 'stored' ? 'Verified: indexed and stored' : verification.state === 'indexed' ? 'Indexed: waiting for batch storage' : verification.state === 'discarded' ? 'Sampling discarded the trace' : 'Accepted: waiting for indexing'}</span>
+                </div>
+                <p className="mt-1">{verification.message}</p>
+                <p className="mt-2 break-all font-mono text-[10px]">Trace ID: {verification.trace_id}</p>
+                {verification.indexed ? <a className="mt-2 inline-block font-bold text-primary underline" href={`/traces/${verification.trace_id}`}>Open trace in Trace Explorer</a> : null}
+                <p className="mt-1">Ingestion: accepted · PostgreSQL index: {verification.indexed ? 'confirmed' : 'pending'} · Object batch: {verification.stored ? 'confirmed' : 'pending'}</p>
+              </div>
+            ) : null}
+            {verificationError ? <p role="alert" className="mt-3 text-[11px] font-semibold text-danger">{verificationError}</p> : null}
+          </Card>
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             <QueueTile label={backend === 'redis' ? "Stream depth" : "Memory queue depth"} value={formatNumber(queue.stream_depth)} hint="Entries waiting in the buffer" />
             <QueueTile label={backend === 'redis' ? "Pending msgs" : "Unacked messages"} value={formatNumber(queue.pending_messages)} hint="Unacknowledged consumer messages" tone="orange" />
@@ -105,14 +177,14 @@ export default function Pipeline() {
           <Card className="mt-4 p-5">
             <CardHeader
               title="Stage flow"
-              subtitle="Every counter is read from the running collector; click a stage to inspect it."
+              subtitle="Live cumulative counts and current backlog. Scroll horizontally to see all stages; click a stage for history."
               icon={Workflow}
             />
             <div className="panel-scroll mt-4 overflow-x-auto pb-2">
-              <div className="flex min-w-[1080px] items-stretch gap-0">
+              <div className="flex w-max min-w-full items-stretch gap-0">
                 {stages.map((stage, index) => (
-                  <div key={stage.stage} className="flex flex-1 items-center">
-                    <div className="w-full min-w-[136px]">
+                  <div key={stage.stage} className="flex shrink-0 items-stretch">
+                    <div className="w-[190px] shrink-0 sm:w-[200px]">
                       <StageCard stage={stage} active={inspected?.stage === stage.stage} onClick={() => setInspected(stage)} />
                     </div>
                     {index < stages.length - 1 ? <StageConnector active={stage.health === 'healthy'} /> : null}

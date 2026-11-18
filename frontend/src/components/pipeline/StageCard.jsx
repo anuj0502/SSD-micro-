@@ -34,7 +34,7 @@ export default function StageCard({ stage, active = false, onClick }) {
     <button
       type="button"
       onClick={onClick}
-      className={`group flex w-full flex-col rounded-widget border bg-white p-3.5 text-left transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lift ${
+      className={`group flex h-full w-full min-w-0 flex-col rounded-widget border bg-white p-4 text-left transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lift ${
         active ? 'border-primary shadow-lift' : 'border-line'
       }`}
     >
@@ -49,11 +49,11 @@ export default function StageCard({ stage, active = false, onClick }) {
       </div>
       <p className="mt-2.5 text-[11.5px] font-bold leading-tight text-ink">{stage.label}</p>
       <p className="mt-0.5 text-[9.5px] font-medium text-muted">{formatMs(stage.latency_ms)} latency</p>
-      <div className="mt-2.5 grid grid-cols-2 gap-x-2 gap-y-1.5 border-t border-line pt-2">
+      <div className="mt-3 grid grid-cols-2 gap-3 border-t border-line pt-3">
         {stats.map((stat) => (
-          <div key={stat.label} className="flex items-baseline justify-between gap-1">
-            <span className="text-[8.5px] font-semibold uppercase tracking-wide text-slate-400">{stat.label}</span>
-            <span className="text-[10px] font-bold text-ink">{stat.value}</span>
+          <div key={stat.label} className="flex min-w-0 flex-col gap-1">
+            <span className="text-[9px] font-semibold uppercase tracking-wide text-slate-400">{stat.label}</span>
+            <span className="break-words text-[15px] font-extrabold tabular-nums text-ink">{stat.value}</span>
           </div>
         ))}
       </div>
@@ -63,7 +63,7 @@ export default function StageCard({ stage, active = false, onClick }) {
 
 export function StageConnector({ active = true }) {
   return (
-    <div className="hidden w-6 shrink-0 items-center justify-center self-center lg:flex" aria-hidden="true">
+    <div className="flex w-7 shrink-0 items-center justify-center self-center" aria-hidden="true">
       <svg width="24" height="12" viewBox="0 0 24 12" className="overflow-visible">
         <line
           x1="0"

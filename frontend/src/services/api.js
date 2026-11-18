@@ -43,6 +43,8 @@ export const api = {
 
   // pipeline
   pipeline: () => get('/pipeline/stats'),
+  startPipelineVerification: () => post('/pipeline/verify'),
+  pipelineVerification: (traceId) => get(`/pipeline/verify/${encodeURIComponent(traceId)}`),
   telemetryStats: () => get('/telemetry/stats'),
 
   // sampling
