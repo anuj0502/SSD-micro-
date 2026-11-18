@@ -1,0 +1,256 @@
+import { useState } from 'react';
+import { Activity, ArrowRight, GitMerge, Layers, RefreshCw, Workflow } from 'lucide-react';
+
+import PageHeading from '../components/layout/PageHeading';
+import Card, { CardHeader } from '../components/ui/Card';
+import Badge from '../components/ui/Badge';
+import Button from '../components/ui/Button';
+import Modal from '../components/ui/Modal';
+import StageCard, { StageConnector } from '../components/pipeline/StageCard';
+import { ErrorState, Skeleton } from '../components/ui/Feedback';
+import { useApp } from '../contexts/AppContext';
+import useApi from '../hooks/useApi';
+import api from '../services/api';
+import { formatMs, formatNumber, formatTime } from '../utils/format';
+
+function QueueTile({ label, value, hint, tone = 'blue' }) {
+  const tones = {
+    blue: 'text-primary bg-blue-50',
+    green: 'text-success bg-emerald-50',
+    orange: 'text-accent bg-orange-50',
+    pink: 'text-danger bg-pink-50',
+  };
+  return (
+    <div className="rounded-widget border border-line bg-white px-4 py-3">
+      <div className="flex items-center justify-between">
+        <span className="text-[10px] font-bold uppercase tracking-wider text-muted">{label}</span>
+        <span className={`rounded-md px-1.5 py-0.5 text-[9px] font-bold ${tones[tone]}`}>live</span>
+      </div>
+      <p className="mt-1.5 text-[22px] font-extrabold leading-none text-ink">{value}</p>
+      <p className="mt-1 text-[9.5px] font-medium text-muted">{hint}</p>
+    </div>
+  );
+}
+
+export default function Pipeline() {
+  const { range, refreshTick } = useApp();
+  const query = useApi(() => api.pipeline(), [range, refreshTick], { interval: 4000 });
+  const [inspected, setInspected] = useState(null);
+
+  const data = query.data;
+  const stages = data?.stages || [];
+  const queue = data?.queue || {};
+  const workers = data?.workers || {};
+  const components = data?.components || {};
+  const health = data?.health || 'unknown';
+
+  const stageHistory = inspected ? data?.history?.[inspected.stage] || [] : [];
+
+  return (
+    <>
+      <PageHeading
+        eyebrow="Data path"
+        title="Telemetry Pipeline"
+        subtitle="Microservices → Ingestion → Redis Buffer → Aggregation → Sampling → Batching → Storage → Indexing."
+        actions={
+          <>
+            <span
+              className={`inline-flex h-9 items-center gap-2 rounded-btn border px-3 text-[11px] font-bold ${
+                health === 'healthy'
+                  ? 'border-emerald-100 bg-emerald-50 text-success'
+                  : 'border-orange-100 bg-orange-50 text-accent'
+              }`}
+            >
+              <span className={`h-1.5 w-1.5 rounded-full ${health === 'healthy' ? 'bg-success' : 'bg-accent'}`} />
+              Pipeline {health}
+            </span>
+            <Button variant="secondary" size="sm" icon={RefreshCw} onClick={query.refresh}>
+              Refresh
+            </Button>
+          </>
+        }
+      />
+
+      {query.loading && !data ? (
+        <div className="space-y-4">
+          <Skeleton className="h-32 rounded-card" />
+          <Skeleton className="h-56 rounded-card" />
+        </div>
+      ) : query.error ? (
+        <ErrorState message={query.error} onRetry={query.refresh} />
+      ) : (
+        <>
+          {data?.degraded_stages?.length ? (
+            <div className="mb-4 flex items-start gap-2.5 rounded-widget border border-orange-100 bg-orange-50/70 px-4 py-3">
+              <Activity size={15} className="mt-0.5 shrink-0 text-accent" />
+              <p className="text-[11.5px] font-medium text-orange-700">
+                Degraded stages: <span className="font-bold">{data.degraded_stages.join(', ')}</span>. Inspect the stage for
+                counters and recent samples.
+              </p>
+            </div>
+          ) : null}
+
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <QueueTile label="Stream depth" value={formatNumber(queue.stream_depth)} hint="Entries waiting in the buffer" />
+            <QueueTile label="Pending msgs" value={formatNumber(queue.pending_messages)} hint="Unacknowledged consumer messages" tone="orange" />
+            <QueueTile label="Spill queue" value={formatNumber(queue.spill_depth)} hint="Spans held during buffer outages" tone="pink" />
+            <QueueTile label="Batch queue" value={formatNumber(queue.batch_queue)} hint={`${formatNumber(queue.batcher_buffer)} traces in batcher`} tone="green" />
+          </div>
+
+          <Card className="mt-4 p-5">
+            <CardHeader
+              title="Stage flow"
+              subtitle="Every counter is read from the running collector; click a stage to inspect it."
+              icon={Workflow}
+            />
+            <div className="panel-scroll mt-4 overflow-x-auto pb-2">
+              <div className="flex min-w-[1080px] items-stretch gap-0">
+                {stages.map((stage, index) => (
+                  <div key={stage.stage} className="flex flex-1 items-center">
+                    <div className="w-full min-w-[136px]">
+                      <StageCard stage={stage} active={inspected?.stage === stage.stage} onClick={() => setInspected(stage)} />
+                    </div>
+                    {index < stages.length - 1 ? <StageConnector active={stage.health === 'healthy'} /> : null}
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="mt-3 flex flex-wrap items-center gap-4 border-t border-line pt-3 text-[10px] font-medium text-muted">
+              <span className="inline-flex items-center gap-1.5"><span className="h-1.5 w-1.5 rounded-full bg-success" /> healthy</span>
+              <span className="inline-flex items-center gap-1.5"><span className="h-1.5 w-1.5 rounded-full bg-accent" /> degraded</span>
+              <span className="inline-flex items-center gap-1.5"><span className="h-1.5 w-1.5 rounded-full bg-danger" /> down</span>
+              <span className="ml-auto">Connectors animate while the upstream stage is healthy.</span>
+            </div>
+          </Card>
+
+          <div className="mt-4 grid gap-4 xl:grid-cols-3">
+            <Card className="p-5 xl:col-span-2">
+              <CardHeader title="Workers" subtitle="Supervised background tasks inside the collector process." icon={GitMerge} />
+              <div className="mt-4 overflow-x-auto">
+                <table className="w-full min-w-[520px] border-collapse">
+                  <thead>
+                    <tr>
+                      <th className="table-head pb-2 text-left">Worker</th>
+                      <th className="table-head pb-2 text-left">State</th>
+                      <th className="table-head pb-2 text-right">Uptime</th>
+                      <th className="table-head pb-2 text-right">Restarts</th>
+                      <th className="table-head pb-2 text-right">Last error</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {Object.entries(workers).map(([name, worker]) => (
+                      <tr key={name} className="border-t border-line">
+                        <td className="py-2.5 text-[11.5px] font-semibold capitalize text-ink">{worker.name || name}</td>
+                        <td className="py-2.5">
+                          <Badge status={worker.running ? 'running' : 'stopped'} />
+                        </td>
+                        <td className="py-2.5 text-right text-[11px] font-medium text-muted">{formatMs((worker.uptime_s || 0) * 1000)}</td>
+                        <td className="py-2.5 text-right text-[11px] font-semibold text-ink">{worker.restarts || 0}</td>
+                        <td className="max-w-[220px] truncate py-2.5 text-right text-[10.5px] font-medium text-muted">
+                          {worker.last_error || 'none'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </Card>
+
+            <Card className="p-5">
+              <CardHeader title="Components" subtitle="Backing infrastructure health." icon={Layers} />
+              <div className="mt-4 space-y-2">
+                {['collector', 'redis', 'postgres', 'minio'].map((key) => {
+                  const component = components[key] || {};
+                  return (
+                    <div key={key} className="flex items-center justify-between rounded-widget border border-line px-3 py-2.5">
+                      <div>
+                        <p className="text-[11.5px] font-bold capitalize text-ink">{key === 'minio' ? 'object storage' : key}</p>
+                        <p className="text-[9.5px] font-medium text-muted">
+                          {component.backend || component.path || component.url || 'local'}
+                        </p>
+                      </div>
+                      <Badge status={component.status} />
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="mt-4 rounded-widget bg-canvas/70 px-3.5 py-3">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-muted">Flow</p>
+                <p className="mt-1 flex flex-wrap items-center gap-1 text-[10px] font-semibold text-ink">
+                  Buffer <ArrowRight size={10} /> Aggregate <ArrowRight size={10} /> Sample <ArrowRight size={10} /> Batch
+                  <ArrowRight size={10} /> Store <ArrowRight size={10} /> Index
+                </p>
+              </div>
+            </Card>
+          </div>
+        </>
+      )}
+
+      <Modal
+        open={Boolean(inspected)}
+        onClose={() => setInspected(null)}
+        title={inspected?.label || 'Stage'}
+        subtitle="Live stage counters and recent persisted samples."
+        width="max-w-xl"
+      >
+        {inspected ? (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between rounded-widget bg-canvas px-4 py-3">
+              <span className="text-[11px] font-semibold text-muted">Health</span>
+              <Badge status={inspected.health} />
+            </div>
+            <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
+              {[
+                { label: 'Incoming', value: formatNumber(inspected.incoming) },
+                { label: 'Processed', value: formatNumber(inspected.processed) },
+                { label: 'Pending', value: formatNumber(inspected.pending) },
+                { label: 'Failed', value: formatNumber(inspected.failed) },
+                { label: 'Latency', value: formatMs(inspected.latency_ms) },
+                { label: 'Backlog ratio', value: inspected.incoming ? `${((inspected.pending / Math.max(inspected.incoming, 1)) * 100).toFixed(1)}%` : '0%' },
+              ].map((item) => (
+                <div key={item.label} className="rounded-xl border border-line px-3 py-2.5">
+                  <p className="text-[9px] font-bold uppercase tracking-wider text-muted">{item.label}</p>
+                  <p className="mt-0.5 text-[14px] font-extrabold text-ink">{item.value}</p>
+                </div>
+              ))}
+            </div>
+
+            <div>
+              <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-muted">Recent samples</p>
+              {stageHistory.length ? (
+                <div className="panel-scroll max-h-52 overflow-y-auto rounded-widget border border-line">
+                  <table className="w-full border-collapse text-[10.5px]">
+                    <thead className="bg-canvas">
+                      <tr>
+                        <th className="px-3 py-2 text-left font-semibold text-muted">Time</th>
+                        <th className="px-3 py-2 text-right font-semibold text-muted">Processed</th>
+                        <th className="px-3 py-2 text-right font-semibold text-muted">Pending</th>
+                        <th className="px-3 py-2 text-right font-semibold text-muted">Failed</th>
+                        <th className="px-3 py-2 text-right font-semibold text-muted">Latency</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {[...stageHistory].reverse().slice(0, 20).map((sample) => (
+                        <tr key={sample.ts} className="border-t border-line">
+                          <td className="px-3 py-1.5 font-medium text-muted">{formatTime(sample.ts)}</td>
+                          <td className="px-3 py-1.5 text-right font-semibold text-ink">{formatNumber(sample.processed)}</td>
+                          <td className="px-3 py-1.5 text-right font-medium text-ink">{formatNumber(sample.pending)}</td>
+                          <td className="px-3 py-1.5 text-right font-medium text-ink">{formatNumber(sample.failed)}</td>
+                          <td className="px-3 py-1.5 text-right font-medium text-ink">{formatMs(sample.latency_ms)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <p className="rounded-widget border border-dashed border-line px-4 py-6 text-center text-[11px] font-medium text-muted">
+                  The metrics worker has not persisted samples for this stage yet.
+                </p>
+              )}
+            </div>
+          </div>
+        ) : null}
+      </Modal>
+    </>
+  );
+}

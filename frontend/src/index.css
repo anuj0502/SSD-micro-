@@ -1,0 +1,73 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    @apply bg-canvas text-ink font-sans text-[13px] font-medium;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    @apply text-ink;
+  }
+
+  ::selection {
+    background: rgba(13, 110, 253, 0.16);
+  }
+}
+
+@layer components {
+  .panel-scroll {
+    scrollbar-width: thin;
+    scrollbar-color: #e2e8f0 transparent;
+  }
+
+  .panel-scroll::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  .panel-scroll::-webkit-scrollbar-thumb {
+    background: #e2e8f0;
+    border-radius: 9999px;
+  }
+
+  .panel-scroll::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .card-hover {
+    @apply transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lift;
+  }
+
+  .focus-ring {
+    @apply outline-none focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:ring-offset-2 focus-visible:ring-offset-white;
+  }
+
+  .table-head {
+    @apply text-[11px] font-semibold uppercase tracking-[0.08em] text-muted;
+  }
+}
+
+@layer utilities {
+  .skeleton {
+    @apply relative overflow-hidden rounded-lg bg-slate-100;
+  }
+
+  .skeleton::after {
+    content: '';
+    @apply absolute inset-0 -translate-x-full animate-shimmer bg-gradient-to-r from-transparent via-white/70 to-transparent;
+  }
+
+  .grid-fade {
+    mask-image: radial-gradient(circle at center, black 40%, transparent 80%);
+  }
+}
