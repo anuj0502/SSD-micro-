@@ -71,6 +71,14 @@ class Settings(BaseSettings):
     worker_restart_delay_s: float = 2.0
     trace_retention_hours: float = 72.0
 
+    # --- optional bounded demo telemetry (off outside the Render demo) ---
+    auto_demo_enabled: bool = False
+    auto_demo_initial_traces: int = 24
+    auto_demo_traces_per_interval: int = 1
+    auto_demo_interval_s: float = 15.0
+    auto_demo_error_probability: float = 0.12
+    auto_demo_slow_probability: float = 0.15
+
     # --- e-commerce simulation ---
     gateway_url: str = "http://localhost:8001"
 

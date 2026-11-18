@@ -26,6 +26,7 @@ from app.api.routes import telemetry as telemetry_routes  # noqa: F401  (route r
 from app.collector.faults import FaultController
 from app.collector.recovery import run_startup_recovery
 from app.config.settings import settings
+from app.services.auto_demo import run_auto_demo
 from app.runtime import Runtime, runtime as global_runtime
 from app.services.benchmarks import BenchmarkRunner
 from app.utils.logging import configure_logging, get_logger
@@ -46,8 +47,13 @@ def create_app(
         runtime.faults = FaultController(runtime)
         runtime.benchmarks = BenchmarkRunner(runtime)
         recovery_task = None
+        demo_task = None
         if run_recovery:
             recovery_task = asyncio.create_task(run_startup_recovery(runtime), name="startup-recovery")
+        # Render's optional traffic simulator uses real ingestion/processing workers.
+        # Never start it in worker-disabled tests or when disabled in configuration.
+        if enable_workers and settings.auto_demo_enabled:
+            demo_task = asyncio.create_task(run_auto_demo(runtime), name="auto-demo-traffic")
         log.info(
             "collector ready",
             extra={
@@ -59,6 +65,10 @@ def create_app(
         try:
             yield
         finally:
+            if demo_task is not None:
+                demo_task.cancel()
+                with contextlib.suppress(asyncio.CancelledError):
+                    await demo_task
             if recovery_task is not None:
                 recovery_task.cancel()
                 with contextlib.suppress(asyncio.CancelledError):

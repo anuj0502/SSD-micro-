@@ -6,6 +6,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, Query
 
 from app.api.deps import get_runtime, parse_time_range, require_ready
+from app.config.settings import settings
 from app.runtime import Runtime
 
 router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
@@ -48,6 +49,7 @@ async def overview(
             "buffer": health["components"]["redis"]["status"],
             "storage": health["components"]["minio"]["status"],
         },
+        "demo": {"enabled": settings.auto_demo_enabled, "source": "synthetic" if settings.auto_demo_enabled else None},
         "generated_at": end,
     }
 

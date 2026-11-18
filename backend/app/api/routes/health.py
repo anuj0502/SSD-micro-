@@ -24,6 +24,7 @@ async def health(runtime: Runtime = Depends(get_runtime)) -> dict[str, Any]:
         "service": settings.app_name,
         "version": "1.0.0",
         "environment": settings.environment,
+        "demo": {"enabled": settings.auto_demo_enabled, "source": "synthetic" if settings.auto_demo_enabled else None},
         "timestamp": time.time(),
         "telemetry": {
             "traces_indexed": int(stats["traces"] or 0) if stats else 0,
